@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14181d">
+<title>Referee Voice Alert</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one-column alarm panel — system status on top, big ARM button in the middle, setup and event log below. Deliberately dark, single theme. */
+:root{
+  --bg:#14181d; --panel:#1c2229; --panel-2:#232a33; --fg:#e6e9ec; --muted:#8b96a3;
+  --line:#2f3843; --amber:#f2a516; --amber-fg:#1a1205; --red:#ef4444; --green:#34c77b;
+  --display:"Chakra Petch", system-ui, sans-serif;
+  --body:"IBM Plex Sans", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);
+  padding:max(18px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+body.alarm{animation:flash .5s steps(2) 6}
+@keyframes flash{50%{background:#3a1012}}
+main{max-width:460px;margin:0 auto;display:grid;gap:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font:700 1.3rem/1.1 var(--display);margin:0;letter-spacing:.06em;text-transform:uppercase}
+.meta{display:flex;align-items:center;gap:10px}
+.demo{font:700 .7rem var(--display);letter-spacing:.14em;color:var(--amber);border:1px solid var(--amber);border-radius:4px;padding:2px 6px}
+.clock{font:500 .95rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+
+.state{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--muted);border-radius:12px;padding:14px 16px}
+.led{width:16px;height:16px;border-radius:50%;background:var(--muted)}
+.state b{font:700 1.5rem/1 var(--display);letter-spacing:.08em;display:block}
+.state small{color:var(--muted)}
+.state[data-s="armed"]{border-left-color:var(--amber)} .state[data-s="armed"] .led{background:var(--amber);box-shadow:0 0 12px var(--amber);animation:blink 1.2s infinite}
+.state[data-s="alarm"]{border-left-color:var(--red)} .state[data-s="alarm"] .led{background:var(--red);box-shadow:0 0 14px var(--red)}
+.state[data-s="off"] .led{background:var(--green)}
+@keyframes blink{50%{opacity:.25}}
+
+#arm{width:200px;height:200px;justify-self:center;border-radius:50%;cursor:pointer;
+  border:10px solid var(--panel-2);background:var(--amber);color:var(--amber-fg);
+  font:700 1.5rem/1.1 var(--display);letter-spacing:.1em;text-transform:uppercase;
+  box-shadow:0 0 0 2px var(--line),0 10px 30px rgba(0,0,0,.4)}
+#arm span{display:block;font:500 .75rem var(--body);letter-spacing:.02em;text-transform:none;margin-top:6px}
+#arm.on{background:var(--panel-2);color:var(--amber);animation:ring 1.8s infinite}
+@keyframes ring{0%{box-shadow:0 0 0 2px var(--amber),0 0 0 0 rgba(242,165,22,.5)}100%{box-shadow:0 0 0 2px var(--amber),0 0 0 26px rgba(242,165,22,0)}}
+#arm:disabled{opacity:.4;cursor:not-allowed}
+
+#heard{margin:0;text-align:center;font:500 .95rem var(--mono);color:var(--muted);min-height:1.5em;overflow-wrap:anywhere}
+
+#callNow{display:block;text-align:center;text-decoration:none;padding:20px;border-radius:12px;background:var(--red);color:#fff;font:700 1.35rem var(--display);letter-spacing:.06em;text-transform:uppercase}
+
+section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:14px}
+h2{margin:0;font:700 .8rem var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+label{display:grid;gap:6px;font-weight:600;font-size:.9rem}
+.hint{color:var(--muted);font-size:.8rem;font-weight:400}
+input,select{font:500 1rem var(--mono);padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);width:100%}
+input:disabled,select:disabled{opacity:.55}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{border:1px solid var(--line);border-radius:8px;padding:11px;text-align:center;cursor:pointer;background:var(--bg)}
+.seg input:checked+label{border-color:var(--amber);color:var(--amber);background:rgba(242,165,22,.08)}
+.seg input:focus-visible+label{outline:3px solid var(--amber);outline-offset:2px}
+
+#log{list-style:none;margin:0;padding:0;display:grid;gap:6px;font:500 .82rem var(--mono);max-height:180px;overflow:auto}
+#log li{display:grid;grid-template-columns:auto 1fr;gap:10px;color:var(--muted)}
+#log time{color:var(--fg);font-variant-numeric:tabular-nums}
+#log li.alert{color:var(--red)}
+#warn{border-color:var(--red)}
+.foot{color:var(--muted);font-size:.78rem;text-align:center;margin:0}
+@media (prefers-reduced-motion: reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Referee Voice Alert</h1>
+    <div class="meta"><span class="demo">DEMO</span><span class="clock" id="clock">--:--:--</span></div>
+  </header>
+
+  <section id="warn" hidden>
+    <strong>This browser can't recognise speech.</strong>
+    <span>Open this page in Google Chrome on Android.</span>
+  </section>
+
+  <div class="state" id="state" data-s="off" role="status" aria-live="polite">
+    <span class="led" aria-hidden="true"></span>
+    <div><b id="stateLabel">DISARMED</b><small id="stateText">Not listening. Arm the system before kick-off.</small></div>
+  </div>
+
+  <button id="arm" type="button">Arm<span>start listening</span></button>
+  <p id="heard"></p>
+  <a id="callNow" href="#" hidden>Call now</a>
+
+  <section aria-label="Setup">
+    <h2>Match setup</h2>
+    <label for="phrase">Referee code phrase
+      <input id="phrase" type="text" value="code red" autocomplete="off">
+      <span class="hint">Pick a phrase nobody says by accident during a game. Case and accents are ignored.</span>
+    </label>
+    <label for="number">Security / police contact
+      <input id="number" type="tel" value="+351915063091" inputmode="tel" autocomplete="off">
+      <span class="hint">Include the country code, e.g. +351 or 00351. Demo: use a test number, not the real police.</span>
+    </label>
+    <div style="display:grid;gap:6px">
+      <span style="font-weight:600;font-size:.9rem">Call type</span>
+      <div class="seg">
+        <input type="radio" name="mode" id="m-tel" value="tel" checked><label for="m-tel">Phone call</label>
+        <input type="radio" name="mode" id="m-wa" value="wa"><label for="m-wa">WhatsApp</label>
+      </div>
+    </div>
+    <label for="lang">Recognition language
+      <select id="lang">
+        <option value="en-GB">English (UK)</option>
+        <option value="en-US">English (US)</option>
+        <option value="pt-PT">Português (Portugal)</option>
+        <option value="lt-LT">Lietuvių</option>
+      </select>
+    </label>
+  </section>
+
+  <section aria-label="Event log">
+    <h2>Event log</h2>
+    <ul id="log"></ul>
+  </section>
+
+  <p class="foot">Prototype for demonstration only. Not a certified emergency service.</p>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  get(k){try{return localStorage.getItem('rva_'+k)}catch(e){return null}},
+  set(k,v){try{localStorage.setItem('rva_'+k,v)}catch(e){}}
+};
+['phrase','number','lang'].forEach(f=>{
+  const v=store.get(f); if(v) $(f).value=v;
+  $(f).addEventListener('change',()=>{store.set(f,$(f).value); log('Setup changed');});
+});
+const savedMode=store.get('mode');
+if(savedMode) document.querySelector(`input[name=mode][value="${savedMode}"]`).checked=true;
+document.querySelectorAll('input[name=mode]').forEach(r=>r.addEventListener('change',()=>store.set('mode',r.value)));
+
+const time=()=>new Date().toLocaleTimeString('en-GB');
+const tick=()=>{$('clock').textContent=time()}; tick(); setInterval(tick,1000);
+
+function log(msg,alert){
+  const li=document.createElement('li'); if(alert) li.className='alert';
+  li.innerHTML=`<time>${time()}</time><span></span>`;
+  li.lastChild.textContent=msg;
+  $('log').prepend(li);
+}
+
+const norm=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+const mode=()=>document.querySelector('input[name=mode]:checked').value;
+function cleanNumber(){
+  let n=$('number').value.replace(/[^\d+]/g,'');
+  if(n.startsWith('00')) n='+'+n.slice(2);
+  return n;
+}
+function callUrl(){
+  const n=cleanNumber();
+  return mode()==='tel' ? 'tel:'+n : 'https://wa.me/'+n.replace(/\D/g,'');
+}
+function setState(s,label,text){
+  $('state').dataset.s=s; $('stateLabel').textContent=label; $('stateText').textContent=text;
+}
+function lockConfig(on){
+  document.querySelectorAll('section[aria-label="Setup"] input, section[aria-label="Setup"] select').forEach(el=>el.disabled=on);
+}
+
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR){ $('warn').hidden=false; $('arm').disabled=true; }
+
+let rec=null, armed=false, wakeLock=null;
+
+function disarm(why){
+  armed=false;
+  $('arm').classList.remove('on'); $('arm').innerHTML='Arm<span>start listening</span>';
+  try{rec&&rec.stop()}catch(e){}
+  if(wakeLock){wakeLock.release().catch(()=>{}); wakeLock=null;}
+  lockConfig(false);
+  if(why) log(why);
+}
+
+function trigger(){
+  const url=callUrl();
+  disarm();
+  setState('alarm','ALERT','Code phrase detected. Calling '+cleanNumber()+'.');
+  log('ALERT: referee code phrase detected',true);
+  log((mode()==='tel'?'Phone call':'WhatsApp')+' to '+cleanNumber(),true);
+  document.body.classList.remove('alarm'); void document.body.offsetWidth; document.body.classList.add('alarm');
+  if(navigator.vibrate) navigator.vibrate([400,150,400,150,400]);
+  const a=$('callNow'); a.href=url; a.hidden=false;
+  a.textContent = mode()==='tel' ? 'Call now' : 'Open WhatsApp';
+  location.href=url; // if the browser blocks it, the red button stays visible
+}
+
+function arm(){
+  if(!norm($('phrase').value)){ log('Set a code phrase before arming'); $('phrase').focus(); return; }
+  if(cleanNumber().replace(/\D/g,'').length<6){ log('Contact number is not valid'); $('number').focus(); return; }
+  $('callNow').hidden=true;
+  rec=new SR();
+  rec.lang=$('lang').value; rec.continuous=true; rec.interimResults=true;
+  rec.onresult=e=>{
+    let t=''; for(let i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript;
+    $('heard').textContent='› '+t.trim();
+    if(norm(t).includes(norm($('phrase').value))) trigger();
+  };
+  rec.onerror=e=>{
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
+      disarm('No microphone access');
+      setState('off','DISARMED','Allow the microphone in the site settings.');
+    }
+  };
+  rec.onend=()=>{ if(armed){ try{rec.start()}catch(e){} } };
+  try{rec.start()}catch(e){}
+  armed=true; lockConfig(true);
+  $('arm').classList.add('on'); $('arm').innerHTML='Armed<span>tap to disarm</span>';
+  setState('armed','ARMED','Listening for the referee code phrase.');
+  log('System armed');
+  if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w=>wakeLock=w).catch(()=>{});
+}
+
+$('arm').addEventListener('click',()=>{
+  if(armed){ disarm('System disarmed'); setState('off','DISARMED','Not listening. Arm the system before kick-off.'); }
+  else arm();
+});
+log('Panel ready');
+</script>
+</body>
+</html>
